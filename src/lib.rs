@@ -14,17 +14,17 @@
     clippy::unseparated_literal_suffix
 )]
 
-use memmap::Mmap;
+#![feature(wasi_ext)]
+
 use parking_lot::Mutex;
 use rayon::{Scope, ThreadPoolBuilder};
 use sha1::{Digest, Sha1};
-use std::env;
 use std::error::Error;
 use std::fmt::{self, Display};
 use std::fs::{self, File, Metadata};
-use std::io::{self, Write};
-use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::{FileTypeExt, MetadataExt};
+use std::io::{self, Write, Read};
+use std::os::wasi::ffi::OsStrExt;
+use std::os::wasi::fs::{FileTypeExt, MetadataExt};
 use std::path::{Path, PathBuf};
 use std::process;
 use std::sync::Once;
@@ -89,6 +89,15 @@ impl Checksum {
             *lhs ^= rhs;
         }
     }
+}
+
+fn get_file_as_byte_vec(filename: &Path) -> Vec<u8> {
+    let mut f = File::open(&filename).expect("no file found");
+    let metadata = fs::metadata(&filename).expect("unable to read metadata");
+    let mut buffer = vec![0; metadata.len() as usize];
+    f.read(&mut buffer).expect("buffer overflow");
+
+    buffer
 }
 
 pub fn checksum_current_dir(label: &Path, ignore_unknown_filetypes: bool) -> Checksum {
@@ -162,9 +171,7 @@ fn file(checksum: &Checksum, path: &Path, metadata: Metadata) -> Result<()> {
 
     // Enforced by memmap: "memory map must have a non-zero length"
     if metadata.len() > 0 {
-        let file = File::open(path)?;
-        let mmap = unsafe { Mmap::map(&file)? };
-        sha.update(&mmap);
+        sha.update(get_file_as_byte_vec(path));
     }
 
     checksum.put(sha);
@@ -212,7 +219,6 @@ fn begin(path: &Path, metadata: &Metadata, kind: u8) -> Sha1 {
     sha.update([kind]);
     sha.update((path_bytes.len() as u32).to_le_bytes());
     sha.update(path_bytes);
-    sha.update(metadata.mode().to_le_bytes());
     sha
 }
 
