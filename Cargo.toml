@@ -11,7 +11,7 @@ repository = "https://github.com/dtolnay/sha1dir"
 [lib]
 name = "sha1dir"
 path = "src/lib.rs"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 clap = { version = "4", features = ["deprecated", "derive"] }
